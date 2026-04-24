@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invito Animato</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:wght@400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+
+    <link rel="preload" as="image" href="textures/retro.png">
+    <link rel="preload" as="image" href="textures/busta-artigianale_int.png">
+    <link rel="preload" as="image" href="textures/busta-artigianale1.png">
+    <link rel="preload" as="image" href="textures/linguetta_chiusa.png">
+    <link rel="preload" as="image" href="textures/front.png">
+    <link rel="preload" as="image" href="textures/3.png">
+    <link rel="preload" as="image" href="textures/1.png">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="is-loading">
+
+    <div class="wrapper">
+        <div class="envelope-back-face">
+            <img class="envelope-back-img" src="textures/retro.png" alt="" decoding="async" fetchpriority="high">
+            <div class="guest-name">Marta</div>
+        </div>
+
+        <div class="envelope-front-face">
+            <div class="envelope-inner">
+                <img class="envelope-inner-img" src="textures/busta-artigianale_int.png" alt="" decoding="async" fetchpriority="high">
+            </div>
+            <img class="pocket" src="textures/busta-artigianale1.png" alt="" decoding="async" fetchpriority="high">
+            <img class="flap" src="textures/linguetta_chiusa.png" alt="" decoding="async" fetchpriority="high">
+            
+            <div class="card">
+                
+                <div class="card-flap">
+                    
+                    <div class="face-1">  
+                        <img src="textures/front.png" alt="Immagine di Copertina" class="card-image">               
+                    </div>
+
+                    <div class="face-2">
+                        <img src="textures/3.png" alt="Immagine seconda pagina" class="card-image">
+                    </div>
+                </div>
+
+                <div class="face-3">
+                    <img src="textures/1.png" alt="Interno Basso" class="card-image">
+    
+                    <div class="link-container">
+                        <span class="text-wrapper">
+                            I festeggiamenti proseguiranno presso Villa Caiselli-Casa (UD),
+                            <a href="https://martaematteo.me" target="_blank">Per maggiori informazioni clicca qui.</a>
+                        </span>
+                    </div>
+                </div>
+            </div>            
+        </div>
+    </div>
+<script>
+    (async () => {
+        // 1. Legge i parametri dall'URL attuale
+        const params = new URLSearchParams(window.location.search);
+        const nomeInvitato = params.get('invitato');
+
+        if (nomeInvitato) {
+            const elementoNome = document.querySelector('.guest-name');
+            if (elementoNome) {
+                elementoNome.textContent = nomeInvitato;
+            }
+        }
+
+        // Raccoglie tutte le URL delle immagini da precaricare
+        function collectImageUrls() {
+            const urls = new Set();
+            document.querySelectorAll('img[src]').forEach(img => {
+                if (img.src) urls.add(img.src);
+            });
+            document.querySelectorAll('link[rel="preload"][as="image"]').forEach(link => {
+                if (link.href) urls.add(link.href);
+            });
+            return Array.from(urls);
+        }
+
+        // Precarica una singola immagine con timeout
+        function preloadImage(url, timeout = 15000) {
+            return new Promise(resolve => {
+                const img = new Image();
+                let done = false;
+                const finish = (ok) => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    resolve({ url, ok });
+                };
+                const timer = setTimeout(() => finish(false), timeout);
+                img.onload = () => finish(true);
+                img.onerror = () => finish(false);
+                img.src = url;
+            });
+        }
+
+        // Precarica tutte le immagini in parallelo
+        async function preloadAllImages() {
+            const urls = collectImageUrls();
+            const results = await Promise.all(urls.map(u => preloadImage(u)));
+            const failed = results.filter(r => !r.ok);
+            if (failed.length) console.warn('Immagini non caricate:', failed.map(r => r.url));
+        }
+
+        // Logica di scroll e centratura
+        function startScrollEffects() {
+            const wrapper = document.querySelector('.wrapper');
+            if (wrapper) {
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const scrollTarget = window.scrollY + wrapperRect.top - (window.innerHeight / 2) + (wrapperRect.height / 2);
+                window.scrollTo({ top: scrollTarget, behavior: 'auto' });
+            }
+
+            function parseTimeToMs(value) {
+                const v = String(value).trim();
+                if (!v) return 0;
+                if (v.endsWith('ms')) return Number.parseFloat(v);
+                if (v.endsWith('s')) return Number.parseFloat(v) * 1000;
+                return 0;
+            }
+
+            function getMaxAnimationEndMs(el) {
+                if (!el) return 0;
+                const cs = window.getComputedStyle(el);
+                const durations = cs.animationDuration.split(',').map(s => s.trim());
+                const delays = cs.animationDelay.split(',').map(s => s.trim());
+                const count = Math.max(durations.length, delays.length);
+                let maxMs = 0;
+                for (let i = 0; i < count; i++) {
+                    const durMs = parseTimeToMs(durations[i % durations.length]);
+                    const delMs = parseTimeToMs(delays[i % delays.length]);
+                    maxMs = Math.max(maxMs, durMs + delMs);
+                }
+                return maxMs;
+            }
+
+            const openAnimEndMs = getMaxAnimationEndMs(document.querySelector('.card-flap'));
+            const scrollAfterMs = Math.max(0, Math.ceil(openAnimEndMs + 250));
+
+            setTimeout(() => {
+                const card = document.querySelector('.card');
+                if (card) {
+                    const cardRect = card.getBoundingClientRect();
+                    const cardCenter = window.scrollY + cardRect.top + (cardRect.height / 2);
+                    const targetScroll = cardCenter - (window.innerHeight / 2) - cardRect.height;
+                    const currentScroll = window.scrollY;
+                    const distance = targetScroll - currentScroll;
+                    const duration = 2000;
+                    const startTime = performance.now();
+
+                    function smoothScroll(currentTime) {
+                        const elapsed = currentTime - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        const easeProgress = progress < 0.5
+                            ? 2 * progress * progress
+                            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                        window.scrollTo(0, currentScroll + (distance * easeProgress));
+                        if (progress < 1) requestAnimationFrame(smoothScroll);
+                    }
+                    requestAnimationFrame(smoothScroll);
+                }
+            }, scrollAfterMs);
+        }
+
+        // Esegui preload, poi sblocca animazioni
+        await preloadAllImages();
+        document.body.classList.remove('is-loading');
+        document.body.classList.add('is-loaded');
+        requestAnimationFrame(() => startScrollEffects());
+    })();
+    </script>
+</body>
+</html>
